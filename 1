@@ -1,0 +1,274 @@
+#include "bstree.h"
+
+static NODE *node_new(ITEM *item);
+static void node_free(NODE **node);
+static int node_insert(NODE **root, NODE *new_node);
+static int node_remove(BSTREE *bst, NODE **root, int key);
+static int detect_children(NODE *node);
+
+static void traversePreOrder(NODE *node);
+static void traverseEndOrder(NODE *node);
+static void traversePostOrder(NODE *node);
+
+static int remove_leaf_node(NODE **root);
+static int promote_left_child(NODE **root);
+static int promote_right_child(NODE **root);
+
+enum {
+	ERROR = -1,
+	LEAF_NODE = 0,
+	ONLY_LCHILD = 1,
+	ONLY_RCHILD = 2,
+	BOTH_CHILD = 3
+};
+
+BSTREE *bstree_new(void)
+{
+	BSTREE *new_bstree = (BSTREE *) malloc(sizeof(BSTREE));
+	if (new_bstree == NULL) {
+		fprintf(stderr, "ERROR: nout enough memory.\n");
+		return NULL;
+	}
+
+	new_bstree->root = NULL;
+	return new_bstree;
+}
+
+void bstree_free(BSTREE **bstree)
+{
+}
+
+int bstree_insert(BSTREE *bstree, ITEM *item)
+{
+	if (bstree == NULL || item == NULL) {
+		return 1;
+	}
+
+	NODE *new_node = node_new(item);
+	return node_insert(&(bstree->root), new_node);
+}
+
+int bstree_remove(BSTREE *bstree, int key)
+{
+	return node_remove(bstree, &(bstree->root), key);
+}
+
+ITEM *bstree_search(BSTREE *bstree, int key)
+{
+	return NULL;
+}
+
+bool is_empty(BSTREE *bstree)
+{
+	if (bstree == NULL) {
+		fprintf(stderr, "ERROR: null pointer.\n");
+		return true;
+	}
+
+	return (bstree->root == NULL) ? true : false;
+}
+
+void preOrderPrint(BSTREE *bstree)
+{
+	traversePreOrder(bstree->root);
+}
+
+void postOrderPrint(BSTREE *bstree)
+{
+	traversePostOrder(bstree->root);
+}
+
+void enOrderPrint(BSTREE *bstree)
+{
+	traverseEndOrder(bstree->root);
+}
+
+static NODE *node_new(ITEM *item)
+{
+	if (item == NULL) {
+		return NULL;
+	}
+
+	NODE *new_node = (NODE *) malloc(sizeof(NODE));
+	if (new_node == NULL) {
+		fprintf(stderr, "ERROR: not enought memory.\n");
+		return NULL;
+	}
+
+	new_node->item = item;
+	new_node->leftChild = NULL;
+	new_node->rightChild = NULL;
+	return new_node;
+}
+
+static int node_insert(NODE **root, NODE *new_node)
+{
+	if (root == NULL || new_node == NULL) {
+		fprintf(stderr, "ERROR: null pointer.\nat: node_insert.\n");
+		return 0;
+	}
+
+	if (*root == NULL) {
+		*root = new_node;
+		return 0;
+	} else {
+		if (new_node->item->key < (*root)->item->key) {
+			return node_insert((&(*root)->leftChild), new_node);
+		} else {
+			return node_insert((&(*root)->rightChild), new_node);
+		}
+	}
+}
+
+static void traversePreOrder(NODE *node)
+{
+	if (node == NULL)
+		return;
+
+	item_print(node->item);
+	traversePreOrder(node->leftChild);
+	traversePreOrder(node->rightChild);
+}
+
+static void traverseEndOrder(NODE *node)
+{
+	if (node == NULL)
+		return;
+
+	traverseEndOrder(node->leftChild);
+	traverseEndOrder(node->rightChild);
+	item_print(node->item);
+}
+
+static void traversePostOrder(NODE *node)
+{
+	if (node == NULL)
+		return;
+
+	traversePostOrder(node->leftChild);
+	item_print(node->item);
+	traversePostOrder(node->rightChild);
+}
+
+static int node_remove(BSTREE *bst, NODE **root, int key)
+{
+	if (bst == NULL || root == NULL) {
+		fprintf(stderr, "ERROR: null pointer.\n");
+		return 1;
+	}
+
+	if (*root == NULL) {
+		fprintf(stderr, "WARNING: key not found for remotion.\n");
+		return 1;
+	}
+
+	if (key == (*root)->item->key) {
+		int nchildren = detect_children(*root);
+		switch(nchildren) {
+			case LEAF_NODE:
+				remove_leaf_node(root);
+				break;
+			case ONLY_LCHILD:
+				promote_left_child(root);
+				break;
+			case ONLY_RCHILD:
+				promote_right_child(root);
+				break;
+			case BOTH_CHILD:
+			break;
+		}
+		return 0;
+	} else if (key < (*root)->item->key) {
+		return node_remove(bst, &((*root)->leftChild), key);
+	} else {
+		return node_remove(bst, &((*root)->rightChild), key);
+	}
+}
+
+static void node_free(NODE **node)
+{
+	if (node == NULL || *node == NULL) {
+		return;
+	}
+
+	(*node)->leftChild = NULL;
+	(*node)->rightChild = NULL;
+	item_free(&((*node)->item));
+	free(*node);
+	*node = NULL;
+}
+static int detect_children(NODE *node)
+{
+	if (node == NULL) {
+		return ERROR;
+	}
+
+	if (node->leftChild == NULL && node->rightChild == NULL)
+		return LEAF_NODE;
+	else if (node->leftChild != NULL && node->rightChild == NULL)
+		return ONLY_LCHILD;
+	else if (node->leftChild == NULL && node->rightChild != NULL)
+		return ONLY_RCHILD;
+	else
+		return BOTH_CHILD;
+}
+
+static int remove_leaf_node(NODE **root)
+{
+	node_free(root);
+	return 0;
+}
+
+static int promote_left_child(NODE **root)
+{
+	if (root == NULL || *root == NULL) {
+		fprintf(stderr, "ERROR: null pointer.\n");
+		return 1;
+	}
+	/*copying parameters from left child node*/
+	ITEM *itemcpy = (*root)->leftChild->item;
+	NODE *leftnodeptr = (*root)->leftChild->leftChild;
+	NODE *rightnodeptr = (*root)->leftChild->rightChild;
+
+	/*invalidating pointers*/
+	(*root)->leftChild->leftChild = NULL;
+	(*root)->leftChild->rightChild = NULL;
+	free(&((*root)->leftChild));
+	(*root)->leftChild = NULL;
+
+	/*pasting paramers to the root node*/
+	item_free(&((*root)->item));
+	(*root)->item = itemcpy;
+	(*root)->leftChild = leftnodeptr;
+	(*root)->rightChild = rightnodeptr;
+	return 0;
+}
+
+static int promote_right_child(NODE **root)
+{
+	if (root == NULL || *root == NULL) {
+		fprintf(stderr, "ERROR: null pointer.\n");
+		return 1;
+	}
+	
+	ITEM *itemcpy = (*root)->rightChild->item;
+	NODE *leftnodeptr = (*root)->rightChild->leftChild;
+	NODE *rightnodeptr = (*root)->rightChild->rightChild;
+
+	(*root)->rightChild->leftChild = NULL;
+	(*root)->rightChild->rightChild = NULL;
+	free(&((*root)->rightChild));
+	(*root)->rightChild = NULL;
+
+#ifdef NDEBUG
+	printf("right child: %p\n", (*root)->rightChild);
+	printf("i am here, bitches...\n");
+
+
+#endif
+	item_free(&((*root)->item));
+	(*root)->item = itemcpy;
+	(*root)->leftChild = leftnodeptr;
+	(*root)->rightChild = rightnodeptr;
+	return 0;
+}
